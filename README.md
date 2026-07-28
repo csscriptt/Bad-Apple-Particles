@@ -21,7 +21,6 @@ Open Command Prompt (`cmd`) or PowerShell and clone the repository:
 git clone https://github.com
 cd Bad-Apple-Particles
 ```
-*(Alternatively, click the green **Code** button on GitHub and select **Download ZIP**, then extract it).*
 
 #### 2. Install Python
 Download Python 3.10+ from [Python.org](https://python.org). Run the installer and check the box that says **"Add python.exe to PATH"**.

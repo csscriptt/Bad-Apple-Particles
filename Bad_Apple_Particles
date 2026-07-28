@@ -1,0 +1,213 @@
+import os
+import time
+import random
+import sys
+import subprocess
+import cv2
+import numpy as np
+import sounddevice as sd
+import pygame
+
+pygame.init()
+
+# ==========================================
+# CONFIGURATION
+# ==========================================
+VIDEO_PATH = "bad_apple_new.mp4"
+SR = 22050  
+
+WINDOW_WIDTH = 960
+WINDOW_HEIGHT = 720
+
+screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.HWSURFACE | pygame.DOUBLEBUF)
+pygame.display.set_caption("Zero-Skip Fluid Particles (Press F / F11)")
+
+is_fullscreen = False
+current_w, current_h = WINDOW_WIDTH, WINDOW_HEIGHT
+
+trail_overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+TRAIL_FADE_SPEED = 12  
+trail_overlay.fill((0, 0, 0, TRAIL_FADE_SPEED))
+
+if not os.path.exists(VIDEO_PATH):
+    print(f"\n❌ ERROR: Could not find the file '{VIDEO_PATH}' in this folder.")
+    sys.exit(1)
+
+# ==========================================
+# AUDIO PIPELINE ENGINE (FFMPEG)
+# ==========================================
+print(f"Streaming raw audio track from {VIDEO_PATH}...")
+command = [
+    'ffmpeg', '-i', VIDEO_PATH, '-f', 's16le', '-acodec', 'pcm_s16le',
+    '-ar', str(SR), '-ac', '1', '-'
+]
+
+try:
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    raw_audio, _ = process.communicate()
+    y = np.frombuffer(raw_audio, dtype=np.int16).astype(np.float32) / 32768.0
+except Exception as e:
+    print(f"\n❌ Audio initialization error: {e}")
+    sys.exit(1)
+
+def get_audio_energy(current_time, duration=0.033):
+    start_sample = int(current_time * SR)
+    end_sample = start_sample + int(duration * SR)
+    if start_sample >= len(y): return 0.0
+    chunk = y[start_sample:end_sample]
+    if len(chunk) == 0: return 0.0
+    return float(np.sqrt(np.mean(chunk**2)))
+
+# ==========================================
+# MAIN GRAPHIC RUNTIME LOOP
+# ==========================================
+def main():
+    global screen, is_fullscreen, current_w, current_h, trail_overlay
+    
+    cap = cv2.VideoCapture(VIDEO_PATH)
+    if not cap.isOpened(): return
+
+    # Get true native video specifications
+    video_fps = cap.get(cv2.CAP_PROP_FPS)
+    if video_fps <= 0: video_fps = 30.0
+
+    clock = pygame.time.Clock()
+    
+    PROC_W, PROC_H = 240, 180 
+    scale_x = current_w / PROC_W
+    scale_y = current_h / PROC_H
+
+    MAX_PARTICLES = 60000
+    p_pos = np.zeros((MAX_PARTICLES, 2), dtype=np.float32)
+    p_vel = np.zeros((MAX_PARTICLES, 2), dtype=np.float32)
+    p_life = np.zeros(MAX_PARTICLES, dtype=np.int32)
+    p_seed = np.zeros(MAX_PARTICLES, dtype=np.float32)
+
+    dot_surf = pygame.Surface((4, 4), pygame.SRCALPHA)
+    pygame.draw.circle(dot_surf, (155, 215, 255, 220), (2, 2), 2)
+
+    prev_gray_frame = None
+
+    screen.fill((5, 5, 10))
+    sd.play(y, SR)
+    start_time = time.time()
+
+    running = True
+    while running and cap.isOpened():
+        current_elapsed_time = time.time() - start_time
+        
+        # --- 1. EVENT INTERCEPTING ---
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+                running = False
+                
+            elif event.type == pygame.KEYDOWN and (event.key == pygame.K_f or event.key == pygame.K_F11):
+                is_fullscreen = not is_fullscreen
+                
+                # FIXED: Pull full display monitor metrics dynamically right inside the event trigger
+                display_info = pygame.display.Info()
+                
+                if is_fullscreen:
+                    current_w = display_info.current_w
+                    current_h = display_info.current_h
+                    screen = pygame.display.set_mode((current_w, current_h), pygame.HWSURFACE | pygame.DOUBLEBUF | pygame.FULLSCREEN)
+                else:
+                    current_w, current_h = WINDOW_WIDTH, WINDOW_HEIGHT
+                    screen = pygame.display.set_mode((current_w, current_h), pygame.HWSURFACE | pygame.DOUBLEBUF)
+                
+                scale_x = current_w / PROC_W
+                scale_y = current_h / PROC_H
+                
+                trail_overlay = pygame.Surface((current_w, current_h), pygame.SRCALPHA)
+                trail_overlay.fill((0, 0, 0, TRAIL_FADE_SPEED))
+                screen.fill((5, 5, 10))
+
+        # --- 2. REAL-TIME FRAME SYNC ENGINE ---
+        target_frame_idx = int(current_elapsed_time * video_fps)
+        current_frame_idx = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
+
+        while current_frame_idx < target_frame_idx:
+            cap.grab()
+            current_frame_idx += 1
+
+        ret, frame = cap.read()
+        if not ret: break
+
+        screen.blit(trail_overlay, (0, 0))
+        energy = get_audio_energy(current_elapsed_time)
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        resized = cv2.resize(gray, (PROC_W, PROC_H))
+        
+        if prev_gray_frame is not None:
+            frame_delta = cv2.absdiff(resized, prev_gray_frame)
+            motion_magnitude = np.mean(frame_delta)
+        else:
+            motion_magnitude = 0.0
+            
+        prev_gray_frame = resized.copy()
+
+        if motion_magnitude > 12.0:
+            target_lifetime = 2
+        else:
+            target_lifetime = 4
+
+        edges = cv2.Canny(resized, 90, 190)
+        y_indices, x_indices = np.where(edges > 0)
+
+        # --- 3. HIGH DENSITY PARTICLE GENERATION ---
+        if len(x_indices) > 0:
+            free_slots = np.where(p_life <= 0)[0] # FIXED: Explicit array tuple unpacking structure to match indexing specs
+            if len(free_slots) > 0:
+                spawn_count = min(len(free_slots), 2000 + int(energy * 6000))
+                slots_to_fill = free_slots[:spawn_count]
+                
+                rand_idx = np.random.randint(0, len(x_indices), size=spawn_count)
+                
+                px = x_indices[rand_idx] * scale_x + np.random.uniform(0, scale_x, size=spawn_count)
+                py = y_indices[rand_idx] * scale_y + np.random.uniform(0, scale_y, size=spawn_count)
+                
+                p_pos[slots_to_fill, 0] = px
+                p_pos[slots_to_fill, 1] = py
+                
+                p_vel[slots_to_fill, 0] = np.random.uniform(-0.3, 0.3, size=spawn_count)
+                p_vel[slots_to_fill, 1] = np.random.uniform(-0.7, -0.2, size=spawn_count)
+                
+                p_life[slots_to_fill] = target_lifetime
+                p_seed[slots_to_fill] = np.random.uniform(0, 100, size=spawn_count)
+
+        # Physics matrices steps
+        active_mask = p_life > 0
+        if np.any(active_mask):
+            p_pos[active_mask] += p_vel[active_mask]
+            
+            t = time.time() * 9.5
+            wave_amp = 0.5 + (energy * 12.0)
+            
+            p_pos[active_mask, 0] += np.sin(t + p_seed[active_mask]) * wave_amp
+            p_pos[active_mask, 1] += np.cos(t + p_seed[active_mask]) * wave_amp
+            
+            p_life[active_mask] -= 1
+
+        # Render active data indices
+        active_ids = np.where(p_life > 0)[0] # FIXED: Enforced matching index structural unpacking bounds
+        if len(active_ids) > 0:
+            xs = p_pos[active_ids, 0].astype(np.int32)
+            ys = p_pos[active_ids, 1].astype(np.int32)
+            
+            valid_mask = (xs >= 0) & (xs < current_w - 4) & (ys >= 0) & (ys < current_h - 4)
+            xs = xs[valid_mask]
+            ys = ys[valid_mask]
+            
+            for i in range(len(xs)):
+                screen.blit(dot_surf, (xs[i], ys[i]))
+
+        pygame.display.flip()
+        clock.tick(30)
+
+    sd.stop()
+    cap.release()
+    pygame.quit()
+
+if __name__ == "__main__":
+    main()
