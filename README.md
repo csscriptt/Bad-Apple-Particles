@@ -34,7 +34,7 @@ pip install opencv-python numpy sounddevice pygame
 ```
 Place your video file inside the folder, name it `bad_apple_new.mp4`, and run:
 ```bash
-python Bad_Apple_Particles.py
+python Bad_Apple_Particles
 ```
 
 ---
@@ -58,7 +58,7 @@ pip install opencv-python numpy sounddevice pygame
 ```
 Place your video file inside the folder, name it `bad_apple_new.mp4`, and run:
 ```bash
-python Bad_Apple_Particles.py
+python Bad_Apple_Particles
 ```
 
 ---
@@ -83,7 +83,7 @@ pip install opencv-python numpy sounddevice pygame
 ```
 Place your video file inside the folder, name it `bad_apple_new.mp4`, and run:
 ```bash
-python Bad_Apple_Particles.py
+python Bad_Apple_Particles
 ```
 
 ---
