@@ -18,7 +18,7 @@ An interactive, high-performance particle engine that reconstructs the iconic **
 #### 1. Download the Code
 Open Command Prompt (`cmd`) or PowerShell and clone the repository:
 ```bash
-git clone https://github.com
+git clone https://github.com/csscriptt/Bad-Apple-Particles/tree/main
 cd Bad-Apple-Particles
 ```
 
@@ -44,7 +44,7 @@ python Bad_Apple_Particles.py
 #### 1. Download the Code & Install Dependencies
 Open your terminal and run:
 ```bash
-git clone https://github.com
+git clone https://github.com/https://github.com/csscriptt/Bad-Apple-Particles/tree/main
 cd Bad-Apple-Particles
 sudo apt update
 sudo apt install python3 python3-pip python3-venv ffmpeg libasound2-dev libportaudio2 -y
@@ -68,7 +68,7 @@ python Bad_Apple_Particles.py
 #### 1. Download the Code & Install Dependencies
 Open your terminal and run:
 ```bash
-git clone https://github.com
+git clone https://github.com/https://github.com/csscriptt/Bad-Apple-Particles/tree/main
 cd Bad-Apple-Particles
 sudo dnf install fedora-workstation-repositories
 sudo dnf config-manager --set-enabled rpmfusion-free
