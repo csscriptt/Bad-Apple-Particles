@@ -16,21 +16,31 @@ An interactive, high-performance particle engine that reconstructs the iconic **
 ### 🪟 Windows Setup
 
 #### 1. Download the Code
-Open Command Prompt (`cmd`) or PowerShell and clone the repository:
+Open PowerShell and clone the repository:
 ```bash
-git clone https://github.com/csscriptt/Bad-Apple-Particles          
+git clone https://github.com
 cd Bad-Apple-Particles
 ```
 
-#### 2. Install Python
-Download Python 3.10+ from [Python.org](https://python.org). Run the installer and check the box that says **"Add python.exe to PATH"**.
-
-#### 3. Install FFmpeg
-Download the FFmpeg essentials build from [Gyan.dev](https://gyan.dev), extract it to `C:\ffmpeg`, and add `C:\ffmpeg\bin` to your system Environment **Path** variable.
-
-#### 4. Install Dependencies & Run
+#### 2. Install Dependencies
+Run the following command to download the modern package environment requirements:
 ```bash
-pip install opencv-python numpy sounddevice pygame
+pip install opencv-python numpy sounddevice pygame-ce
+```
+*(Note: We use `pygame-ce` because legacy pygame fails to build from source on modern Python versions).*
+
+#### 3. Install FFmpeg via Terminal
+In your PowerShell window, install FFmpeg instantly via the Windows Package Manager:
+```bash
+winget install Gyan.FFmpeg
+```
+**Important:** Once the installation finishes, close your current PowerShell window entirely and open a brand-new one to refresh your system's PATH variables.
+
+#### 4. Run the Project
+Navigate back to your folder, drop your video file inside it, rename the video to `bad_apple_new.mp4`, and run:
+```bash
+cd Bad-Apple-Particles
+python Bad_Apple_Particles
 ```
 Place your video file inside the folder, name it `bad_apple_new.mp4`, and run:
 ```bash
